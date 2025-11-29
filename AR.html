@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title> Cash Discount vs Bank OD Calculator</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background: #111827;
+      color: #e5e7eb;
+      display: flex;
+      justify-content: center;
+      align-items: flex-start;
+      min-height: 100vh;
+      margin: 0;
+      padding: 20px;
+    }
+    .container {
+      background: #1f2937;
+      padding: 20px 24px;
+      border-radius: 12px;
+      max-width: 480px;
+      width: 100%;
+      box-shadow: 0 10px 25px rgba(0,0,0,0.5);
+    }
+    h1 {
+      font-size: 20px;
+      margin-bottom: 6px;
+      text-align: center;
+    }
+    .subtitle {
+      font-size: 12px;
+      color: #9ca3af;
+      text-align: center;
+      margin-bottom: 18px;
+    }
+    label {
+      display: block;
+      margin-bottom: 4px;
+      font-size: 13px;
+    }
+    input {
+      width: 100%;
+      padding: 8px 10px;
+      margin-bottom: 12px;
+      border-radius: 6px;
+      border: 1px solid #374151;
+      background: #111827;
+      color: #f9fafb;
+      box-sizing: border-box;
+      font-size: 13px;
+    }
+    input::placeholder {
+      color: #6b7280;
+    }
+    button {
+      width: 100%;
+      padding: 10px;
+      margin-top: 4px;
+      border-radius: 8px;
+      border: none;
+      cursor: pointer;
+      font-weight: bold;
+      font-size: 14px;
+      background: #10b981;
+      color: #03201a;
+    }
+    button:hover {
+      background: #059669;
+    }
+    .result-box {
+      margin-top: 16px;
+      padding: 12px;
+      background: #111827;
+      border-radius: 10px;
+      border: 1px solid #374151;
+      font-size: 13px;
+      line-height: 1.5;
+    }
+    .result-row {
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 4px;
+    }
+    .result-label {
+      color: #9ca3af;
+    }
+    .highlight {
+      font-weight: bold;
+      color: #fbbf24;
+    }
+    .recommendation {
+      margin-top: 10px;
+      padding-top: 8px;
+      border-top: 1px dashed #374151;
+      font-size: 13px;
+    }
+    .error {
+      color: #f87171;
+      margin-top: 8px;
+      font-size: 12px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Cash Discount vs Bank OD</h1>
+    
+    <label>Invoice / Payment Amount (₹)</label>
+    <input type="number" id="amount" placeholder="e.g. 100000" value="100000" />
+
+    <label>Cash Discount (% off invoice)</label>
+    <input type="number" id="discountPercent" placeholder="e.g. 2 for 2/10 net 30" value="2" />
+
+    <label>Discount Period (days)</label>
+    <input type="number" id="discountDays" placeholder="e.g. 10" value="10" />
+
+    <label>Net Credit Period (days)</label>
+    <input type="number" id="netDays" placeholder="e.g. 30" value="30" />
+
+    <label>Bank OD Interest Rate (% per annum)</label>
+    <input type="number" id="odRate" placeholder="e.g. 25" value="25" />
+
+    <button onclick="calculate()">Calculate</button>
+
+    <div id="error" class="error"></div>
+
+    <div class="result-box" id="results" style="display:none;">
+      <div class="result-row">
+        <div class="result-label">Discount Amount Saved:</div>
+        <div id="discountAmount"></div>
+      </div>
+      <div class="result-row">
+        <div class="result-label">OD Interest Cost (for extra days):</div>
+        <div id="interestCost"></div>
+      </div>
+      <div class="result-row">
+        <div class="result-label">Net Gain from Taking Discount:</div>
+        <div id="netGain" class="highlight"></div>
+      </div>
+      <div class="result-row">
+        <div class="result-label">Implicit Annual Cost of NOT Taking Discount:</div>
+        <div id="implicitRate"></div>
+      </div>
+      <div class="result-row">
+        <div class="result-label">Your Bank OD Rate:</div>
+        <div id="odRateDisplay"></div>
+      </div>
+
+      <div class="recommendation" id="recommendation"></div>
+    </div>
+  </div>
+
+  <script>
+    function formatMoney(num) {
+      if (isNaN(num)) return "-";
+      return "₹" + num.toFixed(2);
+    }
+
+    function formatPercent(num) {
+      if (isNaN(num)) return "-";
+      return num.toFixed(2) + " %";
+    }
+
+    function calculate() {
+      const amount = parseFloat(document.getElementById("amount").value);
+      const discountPercent = parseFloat(document.getElementById("discountPercent").value);
+      const discountDays = parseInt(document.getElementById("discountDays").value);
+      const netDays = parseInt(document.getElementById("netDays").value);
+      const odRate = parseFloat(document.getElementById("odRate").value);
+
+      const errorDiv = document.getElementById("error");
+      const resultsDiv = document.getElementById("results");
+      errorDiv.textContent = "";
+      resultsDiv.style.display = "none";
+
+      if (
+        isNaN(amount) || isNaN(discountPercent) || isNaN(discountDays) ||
+        isNaN(netDays) || isNaN(odRate)
+      ) {
+        errorDiv.textContent = "Please enter all values correctly.";
+        return;
+      }
+
+      if (amount <= 0 || discountPercent <= 0 || netDays <= 0) {
+        errorDiv.textContent = "Amount, discount %, and net days must be greater than zero.";
+        return;
+      }
+
+      const extraDays = netDays - discountDays;
+      if (extraDays <= 0) {
+        errorDiv.textContent = "Net credit period must be greater than discount period.";
+        return;
+      }
+
+      // 1. Discount amount
+      const discountAmount = amount * (discountPercent / 100);
+
+      // 2. OD interest for extra days (if you pay early and borrow)
+      const interestCost = amount * (odRate / 100) * (extraDays / 365);
+
+      // 3. Net gain
+      const netGain = discountAmount - interestCost;
+
+      // 4. Implicit annual cost of NOT taking discount
+      // Formula: (discount% / (100 - discount%)) * (365 / extraDays) * 100
+      const implicitAnnualRate =
+        (discountPercent / (100 - discountPercent)) * (365 / extraDays) * 100;
+
+      // Fill DOM
+      document.getElementById("discountAmount").textContent = formatMoney(discountAmount);
+      document.getElementById("interestCost").textContent = formatMoney(interestCost);
+      document.getElementById("netGain").textContent = formatMoney(netGain);
+      document.getElementById("implicitRate").textContent = formatPercent(implicitAnnualRate);
+      document.getElementById("odRateDisplay").textContent = formatPercent(odRate);
+
+      let reco = "";
+      if (odRate < implicitAnnualRate) {
+        reco = "TAKE the cash discount and fund using Bank OD.";
+      } else if (odRate > implicitAnnualRate) {
+        reco = "Financially better to use SUPPLIER CREDIT and skip the cash discount.";
+      } else {
+        reco = "You are indifferent: OD rate equals the implicit cost of supplier credit.";
+      }
+
+      document.getElementById("recommendation").textContent = reco;
+      resultsDiv.style.display = "block";
+    }
+  </script>
+</body>
+</html>
